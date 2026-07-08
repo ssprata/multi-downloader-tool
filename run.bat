@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ===================================================
-echo   Cyberpunk Multi-Downloader Setup & Execution
+echo   Cyberpunk Multi-Downloader Setup and Execution
 echo ===================================================
 
 :: Check for Python
