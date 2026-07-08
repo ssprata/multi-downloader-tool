@@ -735,6 +735,67 @@ class MainWindow(QMainWindow):
         splitter.addWidget(main_content)
         splitter.setSizes([300, 800])
 
+        # Connect auto-save signals for tab inputs
+        self.connect_auto_save_signals()
+
+    def connect_auto_save_signals(self):
+        # aria2c tab
+        self.aria_conn_spin.valueChanged.connect(self.save_active_profile_tab_settings)
+        self.aria_split_spin.valueChanged.connect(self.save_active_profile_tab_settings)
+        self.aria_speed_input.textChanged.connect(self.save_active_profile_tab_settings)
+        self.aria_flags_input.textChanged.connect(self.save_active_profile_tab_settings)
+        
+        # yt-dlp tab
+        self.ytdlp_fmt_combo.currentTextChanged.connect(self.save_active_profile_tab_settings)
+        self.ytdlp_audio_cb.toggled.connect(self.save_active_profile_tab_settings)
+        self.ytdlp_audio_fmt.currentTextChanged.connect(self.save_active_profile_tab_settings)
+        self.ytdlp_audio_q.valueChanged.connect(self.save_active_profile_tab_settings)
+        self.ytdlp_subs_cb.toggled.connect(self.save_active_profile_tab_settings)
+        self.ytdlp_flags_input.textChanged.connect(self.save_active_profile_tab_settings)
+        
+        # gallery-dl tab
+        self.gallerydl_flags_input.textChanged.connect(self.save_active_profile_tab_settings)
+
+    def save_active_profile_tab_settings(self):
+        # Prevent saving while display_active_profile_details is loading values to the UI
+        if getattr(self, "is_loading_profile", False):
+            return
+
+        active_prof = self.config_manager.get_active_profile()
+        if not active_prof:
+            return
+
+        # 1. Update aria2 settings
+        aria_settings = {
+            "max_connection_per_server": self.aria_conn_spin.value(),
+            "split": self.aria_split_spin.value(),
+            "max_download_limit": self.aria_speed_input.text().strip(),
+            "custom_flags": self.aria_flags_input.text().strip()
+        }
+        active_prof["aria2_settings"] = aria_settings
+
+        # 2. Update yt-dlp settings
+        fmt_text = self.ytdlp_fmt_combo.currentText()
+        fmt = fmt_text.split(" ")[0]
+        ytdlp_settings = {
+            "format": fmt,
+            "extract_audio": self.ytdlp_audio_cb.isChecked(),
+            "audio_format": self.ytdlp_audio_fmt.currentText(),
+            "audio_quality": str(self.ytdlp_audio_q.value()),
+            "embed_subs": self.ytdlp_subs_cb.isChecked(),
+            "custom_flags": self.ytdlp_flags_input.text().strip()
+        }
+        active_prof["ytdlp_settings"] = ytdlp_settings
+
+        # 3. Update gallery-dl settings
+        gallerydl_settings = {
+            "custom_flags": self.gallerydl_flags_input.text().strip()
+        }
+        active_prof["gallerydl_settings"] = gallerydl_settings
+
+        # Save config changes instantly
+        self.config_manager.save()
+
     # ----------------- PROFILES logic -----------------
     def load_profiles(self):
         self.profiles_list.blockSignals(True)
@@ -818,6 +879,8 @@ class MainWindow(QMainWindow):
         if not active_prof:
             return
 
+        self.is_loading_profile = True  # Disable auto-saving during load
+
         self.prof_name_input.setText(active_prof["name"])
         
         # Populate and select the current folder
@@ -860,6 +923,8 @@ class MainWindow(QMainWindow):
             self.config_tabs.setCurrentIndex(2)
             gdl_s = active_prof.get("gallerydl_settings", {})
             self.gallerydl_flags_input.setText(gdl_s.get("custom_flags", ""))
+
+        self.is_loading_profile = False  # Enable auto-saving again
 
     def on_profile_item_clicked(self, item, column):
         role = item.data(0, Qt.ItemDataRole.UserRole)
