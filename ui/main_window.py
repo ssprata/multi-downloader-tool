@@ -101,6 +101,124 @@ class CyberMessageBox(QDialog):
         return dialog.exec() == QDialog.DialogCode.Accepted
 
 
+class CyberInputDialog(QDialog):
+    def __init__(self, title, label_text, default_value="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        
+        self.setObjectName("card_frame")
+        self.setStyleSheet("""
+            QDialog#card_frame {
+                background-color: #12131c;
+                border: 2px solid #00f0ff;
+                border-radius: 8px;
+            }
+        """)
+        self.value = ""
+        self.setup_ui(title, label_text, default_value)
+
+    def setup_ui(self, title, label_text, default_value):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(15)
+
+        title_lbl = QLabel(title.upper())
+        title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #00f0ff; letter-spacing: 1px;")
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_lbl)
+
+        label = QLabel(label_text)
+        label.setStyleSheet("font-size: 13px; color: #e2e8f0;")
+        layout.addWidget(label)
+
+        self.input_edit = QLineEdit(default_value)
+        layout.addWidget(self.input_edit)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(15)
+
+        ok_btn = QPushButton("CONFIRM")
+        ok_btn.setObjectName("neon_cyan_btn")
+        ok_btn.clicked.connect(self.on_ok_clicked)
+
+        cancel_btn = QPushButton("CANCEL")
+        cancel_btn.setObjectName("neon_magenta_btn")
+        cancel_btn.clicked.connect(self.reject)
+
+        btn_layout.addStretch()
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addStretch()
+
+        layout.addLayout(btn_layout)
+
+    def on_ok_clicked(self):
+        self.value = self.input_edit.text().strip()
+        self.accept()
+
+    @staticmethod
+    def get_text(parent, title, label_text, default_value=""):
+        dialog = CyberInputDialog(title, label_text, default_value, parent=parent)
+        if parent:
+            dialog.adjustSize()
+            geom = parent.geometry()
+            x = geom.x() + (geom.width() - dialog.width()) // 2
+            y = geom.y() + (geom.height() - dialog.height()) // 2
+            dialog.move(x, y)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            return dialog.value, True
+        return "", False
+
+
+class ProfileTreeWidget(QTreeWidget):
+    profile_moved = pyqtSignal(str, str) # profile_name, new_folder_name
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QTreeWidget.DragDropMode.InternalMove)
+
+    def dragEnterEvent(self, event):
+        item = self.currentItem()
+        if item and item.data(0, Qt.ItemDataRole.UserRole) == "profile":
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        # Find target item under drop position
+        target_item = self.itemAt(event.position().toPoint())
+        dragged_item = self.currentItem()
+        
+        if not dragged_item or dragged_item.data(0, Qt.ItemDataRole.UserRole) != "profile":
+            event.ignore()
+            return
+            
+        new_folder = ""
+        if target_item:
+            role = target_item.data(0, Qt.ItemDataRole.UserRole)
+            if role == "folder":
+                new_folder = target_item.data(0, Qt.ItemDataRole.UserRole + 1)
+            elif role == "profile":
+                parent = target_item.parent()
+                if parent:
+                    new_folder = parent.data(0, Qt.ItemDataRole.UserRole + 1)
+        
+        profile_name = dragged_item.data(0, Qt.ItemDataRole.UserRole + 1)
+        
+        # Accept drop internally
+        event.accept()
+        
+        # Emit signal to let parent view update config
+        self.profile_moved.emit(profile_name, new_folder)
+
+
 # Worker to download tools in background
 class ToolDownloadWorker(QThread):
     progress_updated = pyqtSignal(str, float)  # tool_name, percentage
@@ -279,9 +397,10 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(profiles_lbl)
 
         # Profiles Tree List
-        self.profiles_list = QTreeWidget()
+        self.profiles_list = ProfileTreeWidget()
         self.profiles_list.setHeaderHidden(True)
         self.profiles_list.itemClicked.connect(self.on_profile_item_clicked)
+        self.profiles_list.profile_moved.connect(self.on_profile_moved)
         self.expanded_folders = set()
         self.profiles_list.itemExpanded.connect(self.on_folder_expanded)
         self.profiles_list.itemCollapsed.connect(self.on_folder_collapsed)
@@ -293,11 +412,16 @@ class MainWindow(QMainWindow):
         self.add_profile_btn.setObjectName("neon_cyan_btn")
         self.add_profile_btn.clicked.connect(self.on_add_profile)
         
+        self.add_folder_btn = QPushButton("+ Folder")
+        self.add_folder_btn.setObjectName("neon_cyan_btn")
+        self.add_folder_btn.clicked.connect(self.on_add_folder)
+        
         self.delete_profile_btn = QPushButton("- Delete")
         self.delete_profile_btn.setObjectName("neon_magenta_btn")
         self.delete_profile_btn.clicked.connect(self.on_delete_profile)
         
         prof_btn_row.addWidget(self.add_profile_btn)
+        prof_btn_row.addWidget(self.add_folder_btn)
         prof_btn_row.addWidget(self.delete_profile_btn)
         sidebar_layout.addLayout(prof_btn_row)
 
@@ -751,6 +875,67 @@ class MainWindow(QMainWindow):
         if role == "folder":
             folder_name = item.data(0, Qt.ItemDataRole.UserRole + 1)
             self.expanded_folders.discard(folder_name)
+
+    def on_profile_moved(self, profile_name, new_folder):
+        # Update folder state in configuration
+        for p in self.config_manager.get_profiles():
+            if p["name"] == profile_name:
+                p["folder"] = new_folder
+                break
+        self.config_manager.save()
+        self.load_profiles()
+
+    def on_add_folder(self):
+        folder_name, ok = CyberInputDialog.get_text(self, "Create Folder", "Enter new folder name:")
+        if not ok or not folder_name:
+            return
+        
+        # Check if folder name already exists
+        existing_folders = set()
+        for p in self.config_manager.get_profiles():
+            f = p.get("folder", "")
+            if f:
+                existing_folders.add(f)
+                
+        if folder_name in existing_folders:
+            CyberMessageBox.show_info(self, "Duplicate Folder", f"A folder named '{folder_name}' already exists.", border_color="#ff007f")
+            return
+            
+        # Create a default profile inside the folder so the folder is visible
+        profiles = self.config_manager.get_profiles()
+        idx = 1
+        profile_name = f"Profile in {folder_name}"
+        existing_names = [p["name"] for p in profiles]
+        while profile_name in existing_names:
+            idx += 1
+            profile_name = f"Profile in {folder_name} {idx}"
+
+        new_profile = {
+            "name": profile_name,
+            "tool": "aria2c",
+            "folder": folder_name,
+            "export_dir": os.path.expanduser("~/Downloads"),
+            "aria2_settings": {
+                "max_connection_per_server": 8,
+                "split": 8,
+                "max_download_limit": "0",
+                "custom_flags": ""
+            },
+            "ytdlp_settings": {
+                "format": "bestvideo+bestaudio/best",
+                "extract_audio": False,
+                "embed_subs": True,
+                "custom_flags": ""
+            },
+            "gallerydl_settings": {
+                "custom_flags": ""
+            }
+        }
+        
+        self.config_manager.add_profile(new_profile)
+        self.config_manager.set_active_profile(profile_name)
+        self.expanded_folders.add(folder_name)
+        self.load_profiles()
 
     def on_add_profile(self):
         # Auto-detect folder to group new profile under
