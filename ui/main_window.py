@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPlainTextEdit, QPushButton, QListWidget,
     QComboBox, QProgressBar, QTabWidget, QSpinBox, QCheckBox,
     QFileDialog, QMessageBox, QSplitter, QScrollArea, QFrame,
-    QSizePolicy, QFormLayout
+    QSizePolicy, QFormLayout, QGroupBox
 )
 from PyQt6.QtGui import QColor, QFont
 
