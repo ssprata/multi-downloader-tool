@@ -1,6 +1,6 @@
 import os
 import uuid
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot, QTimer
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPlainTextEdit, QPushButton, QListWidget,
@@ -212,7 +212,11 @@ class ProfileTreeWidget(QTreeWidget):
         
         profile_name = dragged_item.data(0, Qt.ItemDataRole.UserRole + 1)
         
-        # Accept drop internally
+        # We accept the event but set its action to IgnoreAction.
+        # This tells Qt that the drop was handled, but prevents QTreeWidget
+        # from performing its default internal move which corrupts the items
+        # when we clear/rebuild.
+        event.setDropAction(Qt.DropAction.IgnoreAction)
         event.accept()
         
         # Emit signal to let parent view update config
@@ -883,7 +887,8 @@ class MainWindow(QMainWindow):
                 p["folder"] = new_folder
                 break
         self.config_manager.save()
-        self.load_profiles()
+        # Defer reloading to let the drag-and-drop event loop finish safely
+        QTimer.singleShot(0, self.load_profiles)
 
     def on_add_folder(self):
         folder_name, ok = CyberInputDialog.get_text(self, "Create Folder", "Enter new folder name:")
