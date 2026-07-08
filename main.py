@@ -1,8 +1,8 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QProgressBar, QMessageBox
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QProgressBar
 from PyQt6.QtCore import Qt, pyqtSignal
 
-from ui.main_window import MainWindow, ToolDownloadWorker
+from ui.main_window import MainWindow, ToolDownloadWorker, CyberMessageBox
 from ui.styles import CYBERPUNK_STYLE
 from dependency_manager import DependencyManager
 
@@ -87,9 +87,10 @@ class FirstTimeSetupWindow(QWidget):
             self.current_download_idx += 1
             self.download_next()
         else:
-            QMessageBox.critical(
+            CyberMessageBox.show_info(
                 self, "Initialization Error", 
-                f"Failed to download required dependency '{tool}':\n{error_msg}\n\nPlease check your connection and try again."
+                f"Failed to download required dependency '{tool}':\n{error_msg}\n\nPlease check your connection and try again.",
+                border_color="#ff007f"
             )
             sys.exit(1)
 

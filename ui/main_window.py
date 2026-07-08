@@ -6,13 +6,100 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPlainTextEdit, QPushButton, QListWidget,
     QComboBox, QProgressBar, QTabWidget, QSpinBox, QCheckBox,
     QFileDialog, QMessageBox, QSplitter, QScrollArea, QFrame,
-    QSizePolicy, QFormLayout, QGroupBox
+    QSizePolicy, QFormLayout, QGroupBox, QDialog
 )
 from PyQt6.QtGui import QColor, QFont
 
 from config_manager import ConfigManager
 from dependency_manager import DependencyManager
 from downloader import DownloadWorker
+
+class CyberMessageBox(QDialog):
+    def __init__(self, title, message, is_confirm=False, border_color="#ff007f", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        
+        self.setObjectName("card_frame")
+        self.setStyleSheet(f"""
+            QDialog#card_frame {{
+                background-color: #12131c;
+                border: 2px solid {border_color};
+                border-radius: 8px;
+            }}
+        """)
+        self.setup_ui(title, message, is_confirm, border_color)
+
+    def setup_ui(self, title, message, is_confirm, border_color):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(20)
+
+        title_lbl = QLabel(title.upper())
+        title_lbl.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {border_color}; letter-spacing: 1px;")
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_lbl)
+
+        msg_lbl = QLabel(message)
+        msg_lbl.setStyleSheet("font-size: 13px; color: #e2e8f0;")
+        msg_lbl.setWordWrap(True)
+        msg_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(msg_lbl)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(15)
+
+        if is_confirm:
+            yes_btn = QPushButton("CONFIRM")
+            yes_btn.setObjectName("neon_cyan_btn")
+            yes_btn.clicked.connect(self.accept)
+            
+            no_btn = QPushButton("CANCEL")
+            no_btn.setObjectName("neon_magenta_btn")
+            no_btn.clicked.connect(self.reject)
+            
+            btn_layout.addStretch()
+            btn_layout.addWidget(yes_btn)
+            btn_layout.addWidget(no_btn)
+            btn_layout.addStretch()
+        else:
+            ok_btn = QPushButton("ACKNOWLEDGE")
+            if border_color == "#00f0ff":
+                ok_btn.setObjectName("neon_cyan_btn")
+            else:
+                ok_btn.setObjectName("neon_magenta_btn")
+            ok_btn.setFixedWidth(140)
+            ok_btn.clicked.connect(self.accept)
+            
+            btn_layout.addStretch()
+            btn_layout.addWidget(ok_btn)
+            btn_layout.addStretch()
+
+        layout.addLayout(btn_layout)
+
+    @staticmethod
+    def show_info(parent, title, message, border_color="#00f0ff"):
+        dialog = CyberMessageBox(title, message, is_confirm=False, border_color=border_color, parent=parent)
+        if parent:
+            dialog.adjustSize()
+            geom = parent.geometry()
+            x = geom.x() + (geom.width() - dialog.width()) // 2
+            y = geom.y() + (geom.height() - dialog.height()) // 2
+            dialog.move(x, y)
+        dialog.exec()
+
+    @staticmethod
+    def show_question(parent, title, message, border_color="#ff007f"):
+        dialog = CyberMessageBox(title, message, is_confirm=True, border_color=border_color, parent=parent)
+        if parent:
+            dialog.adjustSize()
+            geom = parent.geometry()
+            x = geom.x() + (geom.width() - dialog.width()) // 2
+            y = geom.y() + (geom.height() - dialog.height()) // 2
+            dialog.move(x, y)
+        return dialog.exec() == QDialog.DialogCode.Accepted
+
 
 # Worker to download tools in background
 class ToolDownloadWorker(QThread):
@@ -258,10 +345,24 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(15)
 
-        # Input: URL Text Area
+        # Input: URL Text Area & Logs Toggle
+        url_header_layout = QHBoxLayout()
         url_lbl = QLabel("URLs (One per line for batch processing):")
         url_lbl.setObjectName("header_label")
-        content_layout.addWidget(url_lbl)
+        url_header_layout.addWidget(url_lbl)
+        
+        url_header_layout.addStretch()
+        
+        # Logs toggle button
+        self.logs_toggle_btn = QPushButton("📜 Hide Logs")
+        self.logs_toggle_btn.setCheckable(True)
+        self.logs_toggle_btn.setChecked(True)  # Checked by default (Logs visible)
+        self.logs_toggle_btn.setObjectName("neon_cyan_btn")
+        self.logs_toggle_btn.setFixedWidth(120)
+        self.logs_toggle_btn.toggled.connect(self.toggle_logs)
+        url_header_layout.addWidget(self.logs_toggle_btn)
+        
+        content_layout.addLayout(url_header_layout)
 
         self.urls_input = QPlainTextEdit()
         self.urls_input.setPlaceholderText("https://youtube.com/watch?v=...\nhttps://example.com/file.zip\n...")
@@ -467,8 +568,8 @@ class MainWindow(QMainWindow):
         bottom_splitter.addWidget(queue_widget)
 
         # Logs panel
-        logs_widget = QWidget()
-        logs_layout = QVBoxLayout(logs_widget)
+        self.logs_widget = QWidget()
+        logs_layout = QVBoxLayout(self.logs_widget)
         logs_layout.setContentsMargins(0, 0, 0, 0)
         
         logs_lbl_row = QHBoxLayout()
@@ -490,7 +591,7 @@ class MainWindow(QMainWindow):
         self.logs_console.setPlaceholderText("Subprocess standard outputs will stream here...")
         logs_layout.addWidget(self.logs_console)
 
-        bottom_splitter.addWidget(logs_widget)
+        bottom_splitter.addWidget(self.logs_widget)
         
         # Set splitter sizes
         bottom_splitter.setSizes([200, 150])
@@ -608,16 +709,15 @@ class MainWindow(QMainWindow):
         current_name = self.config_manager.get_active_profile_name()
         
         if len(self.config_manager.get_profiles()) <= 1:
-            QMessageBox.warning(self, "Cannot Delete", "You must keep at least one profile.")
+            CyberMessageBox.show_info(self, "Cannot Delete", "You must keep at least one profile.", border_color="#ff007f")
             return
 
-        reply = QMessageBox.question(
+        reply = CyberMessageBox.show_question(
             self, "Confirm Delete",
-            f"Are you sure you want to delete profile '{current_name}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            f"Are you sure you want to delete profile '{current_name}'?"
         )
         
-        if reply == QMessageBox.StandardButton.Yes:
+        if reply:
             self.config_manager.delete_profile(current_name)
             self.load_profiles()
 
@@ -652,14 +752,14 @@ class MainWindow(QMainWindow):
 
         new_name = self.prof_name_input.text().strip()
         if not new_name:
-            QMessageBox.warning(self, "Invalid Name", "Profile name cannot be empty.")
+            CyberMessageBox.show_info(self, "Invalid Name", "Profile name cannot be empty.", border_color="#ff007f")
             return
 
         # Ensure name uniqueness if name changed
         if new_name != active_name:
             existing = [p["name"] for p in self.config_manager.get_profiles() if p["name"] != active_name]
             if new_name in existing:
-                QMessageBox.warning(self, "Duplicate Name", f"A profile named '{new_name}' already exists.")
+                CyberMessageBox.show_info(self, "Duplicate Name", f"A profile named '{new_name}' already exists.", border_color="#ff007f")
                 return
 
         tool = self.prof_tool_combo.currentText()
@@ -702,7 +802,7 @@ class MainWindow(QMainWindow):
 
         self.config_manager.update_profile(active_name, updated_profile)
         self.load_profiles()
-        QMessageBox.information(self, "Settings Saved", f"Profile '{new_name}' settings saved successfully.")
+        CyberMessageBox.show_info(self, "Settings Saved", f"Profile '{new_name}' settings saved successfully.", border_color="#00f0ff")
 
     # ----------------- TOOL DOWNLOADER logic -----------------
     def refresh_tools_status(self):
@@ -736,7 +836,7 @@ class MainWindow(QMainWindow):
 
     def download_binary(self, tool_name):
         if tool_name in self.tool_download_workers:
-            QMessageBox.information(self, "Downloading", f"Already downloading {tool_name}.")
+            CyberMessageBox.show_info(self, "Downloading", f"Already downloading {tool_name}.", border_color="#ff007f")
             return
 
         # Disable button
@@ -779,9 +879,9 @@ class MainWindow(QMainWindow):
             worker.wait()
 
         if success:
-            QMessageBox.information(self, "Install Completed", f"Successfully installed/updated {tool_name}.")
+            CyberMessageBox.show_info(self, "Install Completed", f"Successfully installed/updated {tool_name}.", border_color="#00f0ff")
         else:
-            QMessageBox.critical(self, "Install Failed", f"Failed to install {tool_name}: {error_msg}")
+            CyberMessageBox.show_info(self, "Install Failed", f"Failed to install {tool_name}:\n{error_msg}", border_color="#ff007f")
 
         self.refresh_tools_status()
 
@@ -789,7 +889,7 @@ class MainWindow(QMainWindow):
     def start_download_batch(self):
         active_prof = self.config_manager.get_active_profile()
         if not active_prof:
-            QMessageBox.warning(self, "No Profile", "Please select a download profile first.")
+            CyberMessageBox.show_info(self, "No Profile", "Please select a download profile first.", border_color="#ff007f")
             return
 
         tool_name = active_prof["tool"]
@@ -797,10 +897,11 @@ class MainWindow(QMainWindow):
         
         # Verify tool is installed
         if not tool_path:
-            QMessageBox.critical(
+            CyberMessageBox.show_info(
                 self, "Engine Missing",
                 f"The engine for '{tool_name}' is not installed.\n"
-                f"Please go to 'Engines & Tools' tab and install it."
+                f"Please go to 'Engines & Tools' tab and install it.",
+                border_color="#ff007f"
             )
             self.config_tabs.setCurrentIndex(3) # Switch to Tools tab
             return
@@ -808,12 +909,12 @@ class MainWindow(QMainWindow):
         # Parse URLs
         urls_text = self.urls_input.toPlainText().strip()
         if not urls_text:
-            QMessageBox.warning(self, "No URLs", "Please enter one or more URLs to download.")
+            CyberMessageBox.show_info(self, "No URLs", "Please enter one or more URLs to download.", border_color="#ff007f")
             return
 
         urls = [line.strip() for line in urls_text.split("\n") if line.strip()]
         if not urls:
-            QMessageBox.warning(self, "No URLs", "No valid URLs found.")
+            CyberMessageBox.show_info(self, "No URLs", "No valid URLs found.", border_color="#ff007f")
             return
 
         # Clear inputs
@@ -900,6 +1001,20 @@ class MainWindow(QMainWindow):
 
     def clear_logs(self):
         self.logs_console.clear()
+
+    def toggle_logs(self, checked):
+        # checked is True if logs should be visible (button checked)
+        self.logs_widget.setVisible(checked)
+        if checked:
+            self.logs_toggle_btn.setText("📜 Hide Logs")
+            self.logs_toggle_btn.setObjectName("neon_cyan_btn")
+        else:
+            self.logs_toggle_btn.setText("📜 Show Logs")
+            self.logs_toggle_btn.setObjectName("")
+            
+        # Refresh styles
+        self.logs_toggle_btn.style().unpolish(self.logs_toggle_btn)
+        self.logs_toggle_btn.style().polish(self.logs_toggle_btn)
 
     def closeEvent(self, event):
         # Terminate any running downloads on window close
