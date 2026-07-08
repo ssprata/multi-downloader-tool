@@ -170,6 +170,30 @@ QListWidget::item:selected {
     border-bottom: 1px solid #9d4edd;
 }
 
+/* Tree Widgets (Profiles tree list) */
+QTreeWidget {
+    background-color: #171822;
+    border: 1px solid #2a2b3d;
+    border-radius: 5px;
+    padding: 5px;
+    color: #ffffff;
+    font-size: 13px;
+}
+QTreeWidget::item {
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+QTreeWidget::item:hover {
+    background-color: #252635;
+    color: #00f0ff;
+}
+QTreeWidget::item:selected {
+    background-color: #9d4edd;
+    color: #ffffff;
+}
+
 /* Tabs styling */
 QTabWidget::pane {
     border: 1px solid #2a2b3d;

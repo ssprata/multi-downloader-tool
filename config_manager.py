@@ -7,6 +7,7 @@ DEFAULT_PROFILES = [
     {
         "name": "Default Direct (aria2c)",
         "tool": "aria2c",
+        "folder": "",
         "export_dir": os.path.expanduser("~/Downloads"),
         "aria2_settings": {
             "max_connection_per_server": 16,
@@ -20,6 +21,7 @@ DEFAULT_PROFILES = [
     {
         "name": "YouTube Video (yt-dlp)",
         "tool": "yt-dlp",
+        "folder": "",
         "export_dir": os.path.expanduser("~/Downloads"),
         "ytdlp_settings": {
             "format": "bestvideo+bestaudio/best",
@@ -34,6 +36,7 @@ DEFAULT_PROFILES = [
     {
         "name": "YouTube Music (yt-dlp)",
         "tool": "yt-dlp",
+        "folder": "",
         "export_dir": os.path.expanduser("~/Downloads"),
         "ytdlp_settings": {
             "format": "bestaudio/best",
@@ -48,6 +51,7 @@ DEFAULT_PROFILES = [
     {
         "name": "Image Galleries (gallery-dl)",
         "tool": "gallery-dl",
+        "folder": "",
         "export_dir": os.path.expanduser("~/Downloads"),
         "gallerydl_settings": {
             "custom_flags": ""
@@ -73,6 +77,10 @@ class ConfigManager:
                     loaded = json.load(f)
                     if "profiles" in loaded:
                         self.config["profiles"] = loaded["profiles"]
+                        # Ensure every profile has a folder key
+                        for p in self.config["profiles"]:
+                            if "folder" not in p:
+                                p["folder"] = ""
                     if "active_profile" in loaded:
                         self.config["active_profile"] = loaded["active_profile"]
             except Exception as e:

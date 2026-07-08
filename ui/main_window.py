@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPlainTextEdit, QPushButton, QListWidget,
     QComboBox, QProgressBar, QTabWidget, QSpinBox, QCheckBox,
     QFileDialog, QMessageBox, QSplitter, QScrollArea, QFrame,
-    QSizePolicy, QFormLayout, QGroupBox, QDialog
+    QSizePolicy, QFormLayout, QGroupBox, QDialog, QTreeWidget, QTreeWidgetItem
 )
 from PyQt6.QtGui import QColor, QFont
 
@@ -278,9 +278,13 @@ class MainWindow(QMainWindow):
         profiles_lbl.setObjectName("section_title")
         sidebar_layout.addWidget(profiles_lbl)
 
-        # Profiles List
-        self.profiles_list = QListWidget()
-        self.profiles_list.currentRowChanged.connect(self.on_profile_selected)
+        # Profiles Tree List
+        self.profiles_list = QTreeWidget()
+        self.profiles_list.setHeaderHidden(True)
+        self.profiles_list.itemClicked.connect(self.on_profile_item_clicked)
+        self.expanded_folders = set()
+        self.profiles_list.itemExpanded.connect(self.on_folder_expanded)
+        self.profiles_list.itemCollapsed.connect(self.on_folder_collapsed)
         sidebar_layout.addWidget(self.profiles_list)
 
         # Profile buttons row
@@ -313,6 +317,10 @@ class MainWindow(QMainWindow):
 
         self.prof_name_input = QLineEdit()
         form_layout.addRow("Name:", self.prof_name_input)
+
+        self.prof_folder_input = QComboBox()
+        self.prof_folder_input.setEditable(True)
+        form_layout.addRow("Folder:", self.prof_folder_input)
 
         self.prof_tool_combo = QComboBox()
         self.prof_tool_combo.addItems(["aria2c", "yt-dlp", "gallery-dl"])
@@ -607,17 +615,75 @@ class MainWindow(QMainWindow):
         profiles = self.config_manager.get_profiles()
         active_name = self.config_manager.get_active_profile_name()
         
-        active_idx = 0
-        for idx, p in enumerate(profiles):
-            self.profiles_list.addItem(p["name"])
-            if p["name"] == active_name:
-                active_idx = idx
-                
-        self.profiles_list.setCurrentRow(active_idx)
-        self.profiles_list.blockSignals(False)
+        root_profiles = []
+        folder_groups = {}
         
-        # Update settings view
+        for p in profiles:
+            folder = p.get("folder", "")
+            if not folder:
+                root_profiles.append(p)
+            else:
+                if folder not in folder_groups:
+                    folder_groups[folder] = []
+                folder_groups[folder].append(p)
+        
+        active_item = None
+        
+        # Add folders first
+        for folder_name, folder_profs in sorted(folder_groups.items()):
+            folder_item = QTreeWidgetItem(self.profiles_list)
+            folder_item.setText(0, f"📁 {folder_name}")
+            folder_item.setData(0, Qt.ItemDataRole.UserRole, "folder")
+            folder_item.setData(0, Qt.ItemDataRole.UserRole + 1, folder_name)
+            
+            # Check if this folder was previously expanded
+            if folder_name in self.expanded_folders:
+                folder_item.setExpanded(True)
+            
+            for p in folder_profs:
+                child_item = QTreeWidgetItem(folder_item)
+                child_item.setText(0, f"📄 {p['name']}")
+                child_item.setData(0, Qt.ItemDataRole.UserRole, "profile")
+                child_item.setData(0, Qt.ItemDataRole.UserRole + 1, p["name"])
+                
+                if p["name"] == active_name:
+                    active_item = child_item
+                    
+        # Add root profiles
+        for p in root_profiles:
+            root_item = QTreeWidgetItem(self.profiles_list)
+            root_item.setText(0, f"📄 {p['name']}")
+            root_item.setData(0, Qt.ItemDataRole.UserRole, "profile")
+            root_item.setData(0, Qt.ItemDataRole.UserRole + 1, p["name"])
+            
+            if p["name"] == active_name:
+                active_item = root_item
+                
+        if active_item:
+            self.profiles_list.setCurrentItem(active_item)
+            parent = active_item.parent()
+            if parent:
+                parent.setExpanded(True)
+                self.expanded_folders.add(parent.data(0, Qt.ItemDataRole.UserRole + 1))
+                
+        self.profiles_list.blockSignals(False)
         self.display_active_profile_details()
+
+    def update_folder_combobox(self):
+        self.prof_folder_input.blockSignals(True)
+        self.prof_folder_input.clear()
+        self.prof_folder_input.addItem("") # None/Root
+        
+        folders = set()
+        for p in self.config_manager.get_profiles():
+            f = p.get("folder", "")
+            if f:
+                folders.add(f)
+                
+        for f in sorted(folders):
+            self.prof_folder_input.addItem(f)
+            
+        self.prof_folder_input.blockSignals(False)
 
     def display_active_profile_details(self):
         active_prof = self.config_manager.get_active_profile()
@@ -625,6 +691,11 @@ class MainWindow(QMainWindow):
             return
 
         self.prof_name_input.setText(active_prof["name"])
+        
+        # Populate and select the current folder
+        self.update_folder_combobox()
+        self.prof_folder_input.setCurrentText(active_prof.get("folder", ""))
+        
         self.prof_tool_combo.setCurrentText(active_prof["tool"])
         self.prof_dir_input.setText(active_prof["export_dir"])
 
@@ -662,15 +733,38 @@ class MainWindow(QMainWindow):
             gdl_s = active_prof.get("gallerydl_settings", {})
             self.gallerydl_flags_input.setText(gdl_s.get("custom_flags", ""))
 
-    def on_profile_selected(self, index):
-        if index < 0:
-            return
-        
-        name = self.profiles_list.item(index).text()
-        self.config_manager.set_active_profile(name)
-        self.display_active_profile_details()
+    def on_profile_item_clicked(self, item, column):
+        role = item.data(0, Qt.ItemDataRole.UserRole)
+        if role == "profile":
+            profile_name = item.data(0, Qt.ItemDataRole.UserRole + 1)
+            self.config_manager.set_active_profile(profile_name)
+            self.display_active_profile_details()
+
+    def on_folder_expanded(self, item):
+        role = item.data(0, Qt.ItemDataRole.UserRole)
+        if role == "folder":
+            folder_name = item.data(0, Qt.ItemDataRole.UserRole + 1)
+            self.expanded_folders.add(folder_name)
+
+    def on_folder_collapsed(self, item):
+        role = item.data(0, Qt.ItemDataRole.UserRole)
+        if role == "folder":
+            folder_name = item.data(0, Qt.ItemDataRole.UserRole + 1)
+            self.expanded_folders.discard(folder_name)
 
     def on_add_profile(self):
+        # Auto-detect folder to group new profile under
+        default_folder = ""
+        curr_item = self.profiles_list.currentItem()
+        if curr_item:
+            role = curr_item.data(0, Qt.ItemDataRole.UserRole)
+            if role == "folder":
+                default_folder = curr_item.data(0, Qt.ItemDataRole.UserRole + 1)
+            elif role == "profile":
+                parent = curr_item.parent()
+                if parent:
+                    default_folder = parent.data(0, Qt.ItemDataRole.UserRole + 1)
+
         # Generate a unique profile name
         profiles = self.config_manager.get_profiles()
         idx = 1
@@ -683,6 +777,7 @@ class MainWindow(QMainWindow):
         new_profile = {
             "name": name,
             "tool": "aria2c",
+            "folder": default_folder,
             "export_dir": os.path.expanduser("~/Downloads"),
             "aria2_settings": {
                 "max_connection_per_server": 8,
@@ -706,20 +801,38 @@ class MainWindow(QMainWindow):
         self.load_profiles()
 
     def on_delete_profile(self):
-        current_name = self.config_manager.get_active_profile_name()
-        
-        if len(self.config_manager.get_profiles()) <= 1:
-            CyberMessageBox.show_info(self, "Cannot Delete", "You must keep at least one profile.", border_color="#ff007f")
+        curr_item = self.profiles_list.currentItem()
+        if not curr_item:
             return
 
-        reply = CyberMessageBox.show_question(
-            self, "Confirm Delete",
-            f"Are you sure you want to delete profile '{current_name}'?"
-        )
-        
-        if reply:
-            self.config_manager.delete_profile(current_name)
-            self.load_profiles()
+        role = curr_item.data(0, Qt.ItemDataRole.UserRole)
+        if role == "folder":
+            folder_name = curr_item.data(0, Qt.ItemDataRole.UserRole + 1)
+            profs_in_folder = [p for p in self.config_manager.get_profiles() if p.get("folder", "") == folder_name]
+            
+            reply = CyberMessageBox.show_question(
+                self, "Confirm Delete Folder",
+                f"Are you sure you want to delete folder '{folder_name}' and all of its {len(profs_in_folder)} profiles?"
+            )
+            if reply:
+                for p in profs_in_folder:
+                    self.config_manager.delete_profile(p["name"])
+                self.load_profiles()
+        elif role == "profile":
+            current_name = curr_item.data(0, Qt.ItemDataRole.UserRole + 1)
+            
+            if len(self.config_manager.get_profiles()) <= 1:
+                CyberMessageBox.show_info(self, "Cannot Delete", "You must keep at least one profile.", border_color="#ff007f")
+                return
+
+            reply = CyberMessageBox.show_question(
+                self, "Confirm Delete",
+                f"Are you sure you want to delete profile '{current_name}'?"
+            )
+            
+            if reply:
+                self.config_manager.delete_profile(current_name)
+                self.load_profiles()
 
     def on_browse_directory(self):
         current_dir = self.prof_dir_input.text()
@@ -763,6 +876,7 @@ class MainWindow(QMainWindow):
                 return
 
         tool = self.prof_tool_combo.currentText()
+        folder = self.prof_folder_input.currentText().strip()
         export_dir = self.prof_dir_input.text().strip()
 
         # Update specific dictionary settings based on UI configuration
@@ -794,6 +908,7 @@ class MainWindow(QMainWindow):
         updated_profile = {
             "name": new_name,
             "tool": tool,
+            "folder": folder,
             "export_dir": export_dir,
             "aria2_settings": aria_settings,
             "ytdlp_settings": ytdlp_settings,
