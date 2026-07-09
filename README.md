@@ -1,6 +1,6 @@
 # 🌌 Synth Downloader
 
-A premium, self-contained desktop download manager featuring customizable profiles, multi-engine support, and a responsive **Cyberpunk/Synthwave** user interface. 
+A premium, self-contained desktop download manager featuring customizable hierarchical profiles, multi-engine support, and a responsive **Cyberpunk/Synthwave** user interface. 
 
 Synth Downloader acts as a visual wrapper for popular CLI tools like `aria2c`, `yt-dlp`, and `gallery-dl`, making it easy to schedule, manage, and monitor direct downloads and media links without touching the command prompt.
 
@@ -8,13 +8,17 @@ Synth Downloader acts as a visual wrapper for popular CLI tools like `aria2c`, `
 
 ## ✨ Features
 
-- **📂 Profile-Based Exports**: Create download profiles targeting different folders (e.g., `Downloads/Music` for music files, `Downloads/Videos` for video files) and store unique parameters for each tool.
+- **📂 Hierarchical Profiles**: Organize your download profiles into expandable and collapsible category folders (e.g., `Music` or `Videos`) to keep the workspace clean.
+- **🖱️ Drag-and-Drop Reorganization**: Drag profile cards and drop them directly inside folders or root sections to dynamically update their parent categories inside `config.json` instantly.
+- **📁 Folder Creation**: Create custom categories using the `+ Folder` footer button, which prompts a custom-themed cyberpunk text input dialog.
+- **🎬 Video Container Format Selector**: Convert or merge video streams into container formats like `mp4`, `mkv`, and `webm` losslessly using `--remux-video`.
+- **⚡ Tab Settings Real-Time Auto-Save**: Toggling or modifying checkboxes, formats, or split connections immediately writes and commits updates directly into the active profile's settings inside `config.json` in real-time.
+- **🎛️ Logs Visibility Toggle**: Toggle logs on or off dynamically via the `📜 Hide Logs` / `📜 Show Logs` header switch to save screen space and focus on active downloads.
+- **🌌 Silent CyberMessageBox Overlay**: Replaces standard system warning and confirmation dialogs with beautiful custom-themed, frameless dialogs, eliminating annoying Windows default information and question sounds.
 - **⚡ Dual Core Engines**: Powered by `aria2c` for high-speed direct file downloads (supports multi-connection splitting) and `yt-dlp` for videos and media downloads.
 - **🖼️ Optional Engines Manager**: Download and integrate optional tools like `gallery-dl` (for image board galleries) and `FFmpeg` (essential for yt-dlp to merge high-resolution video and audio formats) directly from the GUI.
 - **📊 Real-time Metrics**: Background threads parse stdout streams to deliver live percentage progress, ETA, and download speeds.
 - **🛑 Cancellation Control**: Cancel active downloads cleanly without creating orphaned background processes.
-- **🖥️ Cyberpunk Aesthetics**: A sleek dark theme with vibrant neon cyan (`#00f0ff`) and cyber pink (`#ff007f`) accents, custom styling sheet (QSS), scrollbars, and glowing buttons.
-- **📜 Engine logs console**: Collapsible live terminal console streaming raw output outputs.
 - **📦 Zero-Configuration Startup**: The application detects missing required utilities on launch and auto-downloads them using a beautiful boot splash screen.
 
 ---
@@ -37,7 +41,7 @@ multi-downloader-tool/
 └── ui/
     ├── __init__.py
     ├── styles.py            # Cyan/Magenta neon cyberpunk stylesheet QSS
-    └── main_window.py       # GUI layouts, widget wrappers, and callbacks
+    └── main_window.py       # GUI layouts, custom dialogs, drag-and-drop tree, and callbacks
 ```
 
 ---
@@ -61,10 +65,11 @@ Ensure you have **Python 3.8 or newer** installed and configured in your system 
 
 ## ⚙️ How to Use
 
-1. **Select or Create a Profile**: Select from default templates in the left panel (e.g., *YouTube Music*, *YouTube Video*, or *Default Direct*) or click **+ New** to create a custom profile.
-2. **Configure Settings**: For the active profile, adjust the output folder using the **Browse** dialog, select the tool configuration, and modify variables (e.g. connections, formats, subtitles).
-3. **Engage Downloads**: 
+1. **Category Folder Creation**: Click `+ Folder` at the bottom of the sidebar, enter a folder name (e.g. `Anime`), and click `Confirm` to add a new category.
+2. **Interactive Grouping**: Grab any profile card (`📄`) and drag it into a folder (`📁`) to group it.
+3. **Configure Settings**: Select the profile to modify, edit its export directory using the **Browse** dialog, select the tool configuration, and modify settings (e.g., connections, audio extraction).
+4. **Engage Downloads**: 
    - Paste one or more links into the top URLs text area (one link per line for batch execution).
    - Press the glowing pink **ENGAGE DOWNLOAD** button.
-4. **Monitor Queue**: Watch the progress bars in the active queue, cancel downloads, or expand the console output below to check command stdout streams.
-5. **Manage Optional Tools**: Navigate to the **Engines & Tools** tab to inspect status or click **Download & Install** to fetch `FFmpeg` or `gallery-dl` dynamically.
+5. **Monitor Queue**: Watch progress bars in the active queue, cancel downloads, or expand/hide the console logs below using the `📜 Hide/Show Logs` toggle.
+6. **Manage Optional Tools**: Navigate to the **Engines & Tools** tab to inspect status or click **Download & Install** to fetch `FFmpeg` or `gallery-dl` dynamically.
