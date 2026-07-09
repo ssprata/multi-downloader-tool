@@ -556,6 +556,12 @@ class MainWindow(QMainWindow):
         self.ytdlp_audio_cb.toggled.connect(self.on_ytdlp_audio_toggled)
         ytdlp_layout.addWidget(self.ytdlp_audio_cb, 1, 0, 1, 2)
 
+        self.ytdlp_video_lbl = QLabel("Video Format:")
+        ytdlp_layout.addWidget(self.ytdlp_video_lbl, 1, 2)
+        self.ytdlp_video_fmt = QComboBox()
+        self.ytdlp_video_fmt.addItems(["best", "mp4", "mkv", "webm"])
+        ytdlp_layout.addWidget(self.ytdlp_video_fmt, 1, 3)
+
         ytdlp_layout.addWidget(QLabel("Audio Format:"), 2, 0)
         self.ytdlp_audio_fmt = QComboBox()
         self.ytdlp_audio_fmt.addItems(["mp3", "m4a", "flac", "opus", "wav"])
@@ -747,6 +753,7 @@ class MainWindow(QMainWindow):
         
         # yt-dlp tab
         self.ytdlp_fmt_combo.currentTextChanged.connect(self.save_active_profile_tab_settings)
+        self.ytdlp_video_fmt.currentTextChanged.connect(self.save_active_profile_tab_settings)
         self.ytdlp_audio_cb.toggled.connect(self.save_active_profile_tab_settings)
         self.ytdlp_audio_fmt.currentTextChanged.connect(self.save_active_profile_tab_settings)
         self.ytdlp_audio_q.valueChanged.connect(self.save_active_profile_tab_settings)
@@ -779,6 +786,7 @@ class MainWindow(QMainWindow):
         fmt = fmt_text.split(" ")[0]
         ytdlp_settings = {
             "format": fmt,
+            "video_format": self.ytdlp_video_fmt.currentText(),
             "extract_audio": self.ytdlp_audio_cb.isChecked(),
             "audio_format": self.ytdlp_audio_fmt.currentText(),
             "audio_quality": str(self.ytdlp_audio_q.value()),
@@ -914,11 +922,17 @@ class MainWindow(QMainWindow):
                     break
             self.ytdlp_fmt_combo.setCurrentIndex(idx)
             
+            self.ytdlp_video_fmt.setCurrentText(ytdlp_s.get("video_format", "best"))
             self.ytdlp_audio_cb.setChecked(ytdlp_s.get("extract_audio", False))
             self.ytdlp_audio_fmt.setCurrentText(ytdlp_s.get("audio_format", "mp3"))
             self.ytdlp_audio_q.setValue(int(ytdlp_s.get("audio_quality", 5)))
             self.ytdlp_subs_cb.setChecked(ytdlp_s.get("embed_subs", True))
             self.ytdlp_flags_input.setText(ytdlp_s.get("custom_flags", ""))
+
+            # Ensure proper enablement based on audio checkbox state
+            is_audio = ytdlp_s.get("extract_audio", False)
+            self.ytdlp_video_lbl.setEnabled(not is_audio)
+            self.ytdlp_video_fmt.setEnabled(not is_audio)
         elif tool == "gallery-dl":
             self.config_tabs.setCurrentIndex(2)
             gdl_s = active_prof.get("gallerydl_settings", {})
@@ -1112,6 +1126,8 @@ class MainWindow(QMainWindow):
     def on_ytdlp_audio_toggled(self, checked):
         self.ytdlp_audio_fmt.setEnabled(checked)
         self.ytdlp_audio_q.setEnabled(checked)
+        self.ytdlp_video_lbl.setEnabled(not checked)
+        self.ytdlp_video_fmt.setEnabled(not checked)
 
     def on_save_profile_settings(self):
         active_name = self.config_manager.get_active_profile_name()
@@ -1149,6 +1165,7 @@ class MainWindow(QMainWindow):
 
         ytdlp_settings = {
             "format": fmt,
+            "video_format": self.ytdlp_video_fmt.currentText(),
             "extract_audio": self.ytdlp_audio_cb.isChecked(),
             "audio_format": self.ytdlp_audio_fmt.currentText(),
             "audio_quality": str(self.ytdlp_audio_q.value()),

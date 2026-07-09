@@ -26,6 +26,7 @@ DEFAULT_PROFILES = [
         "ytdlp_settings": {
             "format": "bestvideo+bestaudio/best",
             "merge_output_format": "mp4",
+            "video_format": "mp4",
             "extract_audio": False,
             "embed_subs": True,
             "custom_flags": ""
@@ -77,10 +78,13 @@ class ConfigManager:
                     loaded = json.load(f)
                     if "profiles" in loaded:
                         self.config["profiles"] = loaded["profiles"]
-                        # Ensure every profile has a folder key
+                        # Ensure every profile has a folder key and normalization
                         for p in self.config["profiles"]:
                             if "folder" not in p:
                                 p["folder"] = ""
+                            if "ytdlp_settings" in p and isinstance(p["ytdlp_settings"], dict):
+                                if "video_format" not in p["ytdlp_settings"]:
+                                    p["ytdlp_settings"]["video_format"] = p["ytdlp_settings"].get("merge_output_format", "best")
                     if "active_profile" in loaded:
                         self.config["active_profile"] = loaded["active_profile"]
             except Exception as e:

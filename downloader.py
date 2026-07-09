@@ -80,9 +80,10 @@ class DownloadWorker(QThread):
                     cmd.append("--audio-quality")
                     cmd.append(audio_q)
                 
-                if self.settings.get("merge_output_format"):
-                    cmd.append("--merge-output-format")
-                    cmd.append(self.settings.get("merge_output_format"))
+                video_fmt = self.settings.get("video_format") or self.settings.get("merge_output_format")
+                if video_fmt and video_fmt != "best" and not video_fmt.startswith("best"):
+                    cmd.append("--remux-video")
+                    cmd.append(video_fmt)
                     
                 if self.settings.get("embed_subs", False):
                     cmd.append("--embed-subs")
