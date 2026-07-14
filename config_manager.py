@@ -16,7 +16,8 @@ DEFAULT_PROFILES = [
             "custom_flags": ""
         },
         "ytdlp_settings": {},
-        "gallerydl_settings": {}
+        "gallerydl_settings": {},
+        "spotdl_settings": {}
     },
     {
         "name": "YouTube Video (yt-dlp)",
@@ -32,7 +33,8 @@ DEFAULT_PROFILES = [
             "custom_flags": ""
         },
         "aria2_settings": {},
-        "gallerydl_settings": {}
+        "gallerydl_settings": {},
+        "spotdl_settings": {}
     },
     {
         "name": "YouTube Music (yt-dlp)",
@@ -47,7 +49,8 @@ DEFAULT_PROFILES = [
             "custom_flags": ""
         },
         "aria2_settings": {},
-        "gallerydl_settings": {}
+        "gallerydl_settings": {},
+        "spotdl_settings": {}
     },
     {
         "name": "Image Galleries (gallery-dl)",
@@ -58,7 +61,22 @@ DEFAULT_PROFILES = [
             "custom_flags": ""
         },
         "aria2_settings": {},
-        "ytdlp_settings": {}
+        "ytdlp_settings": {},
+        "spotdl_settings": {}
+    },
+    {
+        "name": "Spotify Download (spotdl)",
+        "tool": "spotdl",
+        "folder": "",
+        "export_dir": os.path.expanduser("~/Downloads"),
+        "spotdl_settings": {
+            "audio_format": "mp3",
+            "audio_quality": "best",
+            "custom_flags": ""
+        },
+        "aria2_settings": {},
+        "ytdlp_settings": {},
+        "gallerydl_settings": {}
     }
 ]
 
@@ -82,6 +100,12 @@ class ConfigManager:
                         for p in self.config["profiles"]:
                             if "folder" not in p:
                                 p["folder"] = ""
+                            if "spotdl_settings" not in p or not isinstance(p["spotdl_settings"], dict):
+                                p["spotdl_settings"] = {
+                                    "audio_format": "mp3",
+                                    "audio_quality": "best",
+                                    "custom_flags": ""
+                                }
                             if "ytdlp_settings" in p and isinstance(p["ytdlp_settings"], dict):
                                 if "video_format" not in p["ytdlp_settings"]:
                                     p["ytdlp_settings"]["video_format"] = p["ytdlp_settings"].get("merge_output_format", "best")

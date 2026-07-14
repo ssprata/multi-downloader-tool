@@ -451,7 +451,7 @@ class MainWindow(QMainWindow):
         form_layout.addRow("Folder:", self.prof_folder_input)
 
         self.prof_tool_combo = QComboBox()
-        self.prof_tool_combo.addItems(["aria2c", "yt-dlp", "gallery-dl"])
+        self.prof_tool_combo.addItems(["aria2c", "yt-dlp", "gallery-dl", "spotdl"])
         self.prof_tool_combo.currentTextChanged.connect(self.on_tool_combo_changed)
         form_layout.addRow("Tool:", self.prof_tool_combo)
 
@@ -603,7 +603,34 @@ class MainWindow(QMainWindow):
         
         self.config_tabs.addTab(self.gallerydl_tab, "gallery-dl Settings")
 
-        # Tab 4: Engine Setup / Optional Tools Manager
+        # Tab 4: spotdl options
+        self.spotdl_tab = QWidget()
+        spotdl_layout = QGridLayout(self.spotdl_tab)
+        spotdl_layout.setContentsMargins(15, 15, 15, 15)
+        spotdl_layout.setSpacing(10)
+        
+        spotdl_layout.addWidget(QLabel("Audio Format:"), 0, 0)
+        self.spotdl_audio_fmt = QComboBox()
+        self.spotdl_audio_fmt.addItems(["mp3", "m4a", "flac", "opus", "ogg", "wav"])
+        spotdl_layout.addWidget(self.spotdl_audio_fmt, 0, 1)
+        
+        spotdl_layout.addWidget(QLabel("Bitrate / Audio Quality:"), 0, 2)
+        self.spotdl_audio_q = QComboBox()
+        self.spotdl_audio_q.addItems(["best", "320k", "256k", "192k", "128k"])
+        spotdl_layout.addWidget(self.spotdl_audio_q, 0, 3)
+        
+        spotdl_layout.addWidget(QLabel("Custom Flags:"), 1, 0)
+        self.spotdl_flags_input = QLineEdit()
+        self.spotdl_flags_input.setPlaceholderText("--user-auth --cookie-file cookies.txt")
+        spotdl_layout.addWidget(self.spotdl_flags_input, 1, 1, 1, 3)
+        
+        spotdl_tip_lbl = QLabel("spotdl requires FFmpeg to convert downloads and embed album art. It matches Spotify links with YouTube audio.")
+        spotdl_tip_lbl.setStyleSheet("color: #a0a5c0; font-style: italic;")
+        spotdl_layout.addWidget(spotdl_tip_lbl, 2, 0, 1, 4)
+        
+        self.config_tabs.addTab(self.spotdl_tab, "spotDL Settings")
+
+        # Tab 5: Engine Setup / Optional Tools Manager
         self.tools_tab = QWidget()
         tools_layout = QVBoxLayout(self.tools_tab)
         tools_layout.setContentsMargins(15, 15, 15, 15)
@@ -652,6 +679,13 @@ class MainWindow(QMainWindow):
         self.gallerydl_download_btn = QPushButton("Download & Install")
         self.gallerydl_download_btn.clicked.connect(lambda: self.download_binary("gallery-dl"))
         opt_group_layout.addWidget(self.gallerydl_download_btn, 1, 2)
+
+        opt_group_layout.addWidget(QLabel("spotdl (Spotify track downloader):"), 2, 0)
+        self.spotdl_status_lbl = QLabel("Checking...")
+        opt_group_layout.addWidget(self.spotdl_status_lbl, 2, 1)
+        self.spotdl_download_btn = QPushButton("Download & Install")
+        self.spotdl_download_btn.clicked.connect(lambda: self.download_binary("spotdl"))
+        opt_group_layout.addWidget(self.spotdl_download_btn, 2, 2)
 
         tools_layout.addWidget(opt_group)
         
@@ -762,6 +796,11 @@ class MainWindow(QMainWindow):
         
         # gallery-dl tab
         self.gallerydl_flags_input.textChanged.connect(self.save_active_profile_tab_settings)
+        
+        # spotdl tab
+        self.spotdl_audio_fmt.currentTextChanged.connect(self.save_active_profile_tab_settings)
+        self.spotdl_audio_q.currentTextChanged.connect(self.save_active_profile_tab_settings)
+        self.spotdl_flags_input.textChanged.connect(self.save_active_profile_tab_settings)
 
     def save_active_profile_tab_settings(self):
         # Prevent saving while display_active_profile_details is loading values to the UI
@@ -800,6 +839,14 @@ class MainWindow(QMainWindow):
             "custom_flags": self.gallerydl_flags_input.text().strip()
         }
         active_prof["gallerydl_settings"] = gallerydl_settings
+
+        # 4. Update spotdl settings
+        spotdl_settings = {
+            "audio_format": self.spotdl_audio_fmt.currentText(),
+            "audio_quality": self.spotdl_audio_q.currentText(),
+            "custom_flags": self.spotdl_flags_input.text().strip()
+        }
+        active_prof["spotdl_settings"] = spotdl_settings
 
         # Save config changes instantly
         self.config_manager.save()
@@ -937,6 +984,12 @@ class MainWindow(QMainWindow):
             self.config_tabs.setCurrentIndex(2)
             gdl_s = active_prof.get("gallerydl_settings", {})
             self.gallerydl_flags_input.setText(gdl_s.get("custom_flags", ""))
+        elif tool == "spotdl":
+            self.config_tabs.setCurrentIndex(3)
+            sdl_s = active_prof.get("spotdl_settings", {})
+            self.spotdl_audio_fmt.setCurrentText(sdl_s.get("audio_format", "mp3"))
+            self.spotdl_audio_q.setCurrentText(sdl_s.get("audio_quality", "best"))
+            self.spotdl_flags_input.setText(sdl_s.get("custom_flags", ""))
 
         self.is_loading_profile = False  # Enable auto-saving again
 
@@ -1122,6 +1175,8 @@ class MainWindow(QMainWindow):
             self.config_tabs.setCurrentIndex(1)
         elif tool_name == "gallery-dl":
             self.config_tabs.setCurrentIndex(2)
+        elif tool_name == "spotdl":
+            self.config_tabs.setCurrentIndex(3)
 
     def on_ytdlp_audio_toggled(self, checked):
         self.ytdlp_audio_fmt.setEnabled(checked)
@@ -1177,6 +1232,12 @@ class MainWindow(QMainWindow):
             "custom_flags": self.gallerydl_flags_input.text().strip()
         }
 
+        spotdl_settings = {
+            "audio_format": self.spotdl_audio_fmt.currentText(),
+            "audio_quality": self.spotdl_audio_q.currentText(),
+            "custom_flags": self.spotdl_flags_input.text().strip()
+        }
+
         updated_profile = {
             "name": new_name,
             "tool": tool,
@@ -1184,7 +1245,8 @@ class MainWindow(QMainWindow):
             "export_dir": export_dir,
             "aria2_settings": aria_settings,
             "ytdlp_settings": ytdlp_settings,
-            "gallerydl_settings": gallerydl_settings
+            "gallerydl_settings": gallerydl_settings,
+            "spotdl_settings": spotdl_settings
         }
 
         self.config_manager.update_profile(active_name, updated_profile)
@@ -1193,18 +1255,20 @@ class MainWindow(QMainWindow):
 
     # ----------------- TOOL DOWNLOADER logic -----------------
     def refresh_tools_status(self):
-        tools = ["aria2c", "yt-dlp", "ffmpeg", "gallery-dl"]
+        tools = ["aria2c", "yt-dlp", "ffmpeg", "gallery-dl", "spotdl"]
         labels = {
             "aria2c": self.aria_status_lbl,
             "yt-dlp": self.ytdlp_status_lbl,
             "ffmpeg": self.ffmpeg_status_lbl,
-            "gallery-dl": self.gallerydl_status_lbl
+            "gallery-dl": self.gallerydl_status_lbl,
+            "spotdl": self.spotdl_status_lbl
         }
         buttons = {
             "aria2c": self.aria_download_btn,
             "yt-dlp": self.ytdlp_download_btn,
             "ffmpeg": self.ffmpeg_download_btn,
-            "gallery-dl": self.gallerydl_download_btn
+            "gallery-dl": self.gallerydl_download_btn,
+            "spotdl": self.spotdl_download_btn
         }
 
         for t in tools:
@@ -1226,11 +1290,12 @@ class MainWindow(QMainWindow):
             CyberMessageBox.show_info(self, "Downloading", f"Already downloading {tool_name}.", border_color="#ff007f")
             return
 
-        # Disable button
+        # Disable buttons
         self.aria_download_btn.setEnabled(False)
         self.ytdlp_download_btn.setEnabled(False)
         self.ffmpeg_download_btn.setEnabled(False)
         self.gallerydl_download_btn.setEnabled(False)
+        self.spotdl_download_btn.setEnabled(False)
 
         self.tool_progress_bar.setValue(0)
         self.tool_progress_bar.setVisible(True)
@@ -1255,6 +1320,7 @@ class MainWindow(QMainWindow):
         self.ytdlp_download_btn.setEnabled(True)
         self.ffmpeg_download_btn.setEnabled(True)
         self.gallerydl_download_btn.setEnabled(True)
+        self.spotdl_download_btn.setEnabled(True)
 
         self.tool_progress_bar.setVisible(False)
         self.tool_progress_lbl.setText("")
@@ -1290,7 +1356,7 @@ class MainWindow(QMainWindow):
                 f"Please go to 'Engines & Tools' tab and install it.",
                 border_color="#ff007f"
             )
-            self.config_tabs.setCurrentIndex(3) # Switch to Tools tab
+            self.config_tabs.setCurrentIndex(4) # Switch to Tools tab (now index 4)
             return
 
         # Parse URLs
@@ -1317,6 +1383,8 @@ class MainWindow(QMainWindow):
             settings = active_prof.get("ytdlp_settings", {})
         elif tool_name == "gallery-dl":
             settings = active_prof.get("gallerydl_settings", {})
+        elif tool_name == "spotdl":
+            settings = active_prof.get("spotdl_settings", {})
         else:
             settings = {}
 

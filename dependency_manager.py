@@ -30,6 +30,11 @@ TOOLS = {
         "is_zip": True,
         # We need both ffmpeg.exe and ffprobe.exe
         "extract_target": ["ffmpeg.exe", "ffprobe.exe"]
+    },
+    "spotdl": {
+        "filename": "spotdl.exe",
+        "url": "https://github.com/spotDL/spotify-downloader/releases/download/v4.2.8/spotdl-4.2.8-win-amd64.exe",
+        "is_zip": False
     }
 }
 
@@ -71,6 +76,20 @@ class DependencyManager:
 
         info = TOOLS[name]
         url = info["url"]
+        
+        # Dynamically query latest spotdl release version
+        if name == "spotdl":
+            try:
+                response_api = requests.get("https://api.github.com/repos/spotDL/spotify-downloader/releases/latest", timeout=8)
+                if response_api.status_code == 200:
+                    data = response_api.json()
+                    for asset in data.get("assets", []):
+                        asset_name = asset.get("name", "")
+                        if asset_name.endswith(".exe") and "win" in asset_name.lower():
+                            url = asset.get("browser_download_url")
+                            break
+            except Exception as e:
+                print(f"Failed to fetch dynamic spotdl url, falling back: {e}")
         
         # Download file to a temp location
         response = requests.get(url, stream=True)

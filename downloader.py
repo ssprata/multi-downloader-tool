@@ -112,14 +112,37 @@ class DownloadWorker(QThread):
                 
                 cmd.append(self.url)
                 
+            elif self.tool_name == "spotdl":
+                # spotdl uses 'download' command
+                cmd.append("download")
+                cmd.append(self.url)
+                
+                # Use --simple-tui for cleaner progress logging
+                cmd.append("--simple-tui")
+                
+                # Add format if specified
+                audio_fmt = self.settings.get("audio_format", "mp3")
+                cmd.append("--format")
+                cmd.append(audio_fmt)
+                
+                # Add quality/bitrate
+                bitrate = self.settings.get("audio_quality", "best")
+                cmd.append("--bitrate")
+                cmd.append(bitrate)
+                
+                # Custom flags
+                custom_flags = self.settings.get("custom_flags", "")
+                if custom_flags:
+                    cmd.extend(shlex.split(custom_flags))
+                
             else:
                 raise ValueError(f"Unsupported tool: {self.tool_name}")
 
             # Prepare env if needed
             env = os.environ.copy()
-            if self.tool_name == "yt-dlp":
-                # Ensure yt-dlp can locate ffmpeg
-                bin_path = os.path.dirname(self.tool_path)
+            # Ensure spotdl and yt-dlp can locate ffmpeg
+            bin_path = os.path.dirname(self.tool_path)
+            if bin_path not in env.get("PATH", ""):
                 env["PATH"] = bin_path + os.pathsep + env.get("PATH", "")
 
             # Log command line to logs pane
@@ -127,6 +150,7 @@ class DownloadWorker(QThread):
             self.log_received.emit(self.download_id, f"Executing command: {cmd_str}\n")
 
             # Spawn subprocess
+            cwd_dir = self.export_dir if self.tool_name == "spotdl" else None
             self.process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -136,6 +160,7 @@ class DownloadWorker(QThread):
                 encoding="utf-8",
                 errors="replace",
                 env=env,
+                cwd=cwd_dir,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
 
@@ -233,4 +258,32 @@ class DownloadWorker(QThread):
                 filename = parts[-1].strip() if len(parts) > 1 else ""
                 status_msg = f"Downloading {filename}" if filename else "Downloading gallery..."
                 self.progress_updated.emit(self.download_id, -1, "-", "-", status_msg)
+                return
+
+        elif self.tool_name == "spotdl":
+            # Parse percentage (e.g., 45% or 45.2%)
+            match = re.search(r'(\d+)%', line)
+            if match:
+                percent = int(match.group(1))
+                speed = "-"
+                eta = "-"
+                
+                # Check for speed, e.g., "0.5MB/s"
+                speed_match = re.search(r'([\d\.]+[KkMm]B/s)', line)
+                if speed_match:
+                    speed = speed_match.group(1)
+                    
+                # Check for ETA, e.g., "ETA: 00:03" or "ETA 00:03"
+                eta_match = re.search(r'ETA[\s:]+([^\], ]+)', line)
+                if eta_match:
+                    eta = eta_match.group(1)
+                    
+                self.progress_updated.emit(self.download_id, percent, speed, eta, "Downloading Spotify track...")
+                return
+                
+            if "lookup" in line.lower() or "searching" in line.lower():
+                self.progress_updated.emit(self.download_id, 5, "-", "-", "Searching Spotify metadata...")
+                return
+            elif "converting" in line.lower() or "ffmpeg" in line.lower() or "encoding" in line.lower() or "mbedding" in line.lower():
+                self.progress_updated.emit(self.download_id, 95, "-", "-", "Post-processing (FFmpeg)...")
                 return
